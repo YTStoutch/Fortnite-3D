@@ -64,13 +64,23 @@ function updateHUD(){
     }
 }
 
-// ===== ASSETS HD =====
-const manager = new THREE.LoadingManager(() => {
-    document.getElementById('loading').style.display = 'none';
-    animate();
-});
+// ===== LOADING MANAGER AVEC PROGRESSION =====
+const manager = new THREE.LoadingManager(
+  () => { // onLoad
+      document.getElementById('loading').style.display = 'none';
+      animate();
+  },
+  (url, itemsLoaded, itemsTotal) => { // onProgress
+      const percent = Math.floor((itemsLoaded/itemsTotal)*100);
+      document.getElementById('loading').innerText = `Chargement ${percent}%`;
+  },
+  (url) => console.error('Erreur de chargement : ' + url) // onError
+);
 
+// ===== ASSETS HD =====
 const loader = new THREE.TextureLoader(manager);
+const gltfLoader = new THREE.GLTFLoader(manager);
+
 const assets = {
     textures:{
         ground: loader.load('assets/textures/ground.png'),
@@ -85,10 +95,9 @@ const assets = {
     }
 };
 
-const gltfLoader = new THREE.GLTFLoader(manager);
-const models={};
+const models = {};
 ['rifle','shotgun','sniper','bot','chest'].forEach(name=>{
-    gltfLoader.load(`assets/models/${name}.glb`,gltf=>{ models[name]=gltf.scene; });
+    gltfLoader.load(`assets/models/${name}.glb`, gltf=>{ models[name]=gltf.scene; });
 });
 
 // ===== SOL =====
@@ -193,45 +202,4 @@ function updatePlayer(delta){
     dir.normalize().multiplyScalar(player.speed*delta);
     camera.position.add(dir);
 
-    // collision simple sol
-    if(camera.position.y<1.7) camera.position.y=1.7;
-
-    // Interaction coffres
-    chests.forEach(c=>{
-        if(camera.position.distanceTo(c.mesh.position)<1.5 && keys['KeyE']){
-            if(player.inventory.length<6){
-                player.inventory.push(c.loot);
-            }
-            assets.sounds.chest.cloneNode().play();
-            scene.remove(c.mesh);
-            chests.splice(chests.indexOf(c),1);
-        }
-    });
-
-    // Bots IA
-    bots.forEach(bot=>{
-        const distance = bot.mesh.position.distanceTo(camera.position);
-        if(distance<10){
-            const dirBot = new THREE.Vector3().subVectors(camera.position,bot.mesh.position).normalize();
-            bot.mesh.position.add(dirBot.multiplyScalar(2*delta));
-            if(bot.cooldown<=0 && distance<8){
-                player.hp -= 5;
-                bot.cooldown = 2;
-            } else bot.cooldown -= delta;
-        }
-    });
-
-    if(shootCooldown>0) shootCooldown-=delta;
-}
-
-// ===== ANIMATION =====
-let lastTime=performance.now();
-function animate(){
-    requestAnimationFrame(animate);
-    let now=performance.now();
-    let delta=(now-lastTime)/1000;
-    lastTime=now;
-    updatePlayer(delta);
-    updateHUD();
-    renderer.render(scene,camera);
-}
+    if(camera.positi
