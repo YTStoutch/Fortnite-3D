@@ -1,254 +1,67 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Fortnite 3D — Prototype</title>
+  <meta charset="UTF-8" />
+  <title>Fortnite 3D Prototype</title>
   <style>
-    html,body{height:100%;margin:0;font-family:Inter,Roboto,Arial}
-    #game{width:100vw;height:100vh;overflow:hidden;display:block;position:relative;background:#87ceeb}
-    #ui{position:absolute;left:12px;top:12px;color:white;z-index:20}
-    .panel{background:rgba(0,0,0,0.45);padding:10px;border-radius:8px;margin-bottom:8px}
-    #inventory{display:flex;gap:6px}
-    .slot{width:48px;height:48px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);border-radius:6px;display:flex;align-items:center;justify-content:center}
-    #scoreboard{position:absolute;right:12px;top:12px;color:white;z-index:20;width:220px}
-    #loading{position:absolute;inset:0;background:#111;display:flex;align-items:center;justify-content:center;color:white;z-index:50;flex-direction:column}
-    #modes{position:absolute;left:50%;top:8px;transform:translateX(-50%);z-index:30}
-    button{background:#1f2937;color:white;border:0;padding:8px 10px;border-radius:6px;cursor:pointer}
-    #chat{position:absolute;left:12px;bottom:12px;width:320px;z-index:20}
-    #hudCenter{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:white;z-index:20}
+    body,html{margin:0;padding:0;overflow:hidden;background:#000;color:white;font-family:Arial}
+    #loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#000;font-size:2rem;z-index:10}
+    #hud{position:fixed;top:0;left:0;width:100%;padding:10px;z-index:5;pointer-events:none;font-size:20px}
+    #inv{position:fixed;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:10px}
+    .slot{width:60px;height:60px;border:2px solid white;display:flex;align-items:center;justify-content:center;background:#111}
   </style>
 </head>
 <body>
-<div id="game"></div>
-<div id="loading"><div style="text-align:center"><h2>Chargement — Fortnite 3D Prototype</h2><p id="loadText">Préparation des assets...</p></div></div>
-<div id="ui">
-  <div class="panel">
-    <div>Arme: <span id="currentWeapon">Pistolet</span></div>
-    <div style="margin-top:6px">Inventaire:</div>
-    <div id="inventory"></div>
-  </div>
-  <div class="panel">
-    <div>Vie: <span id="hp">100</span></div>
-    <div>Points: <span id="points">0</span></div>
-  </div>
-</div>
-<div id="scoreboard" class="panel">
-  <h4>Classement</h4>
-  <ol id="leaderboard"></ol>
-</div>
-<div id="modes" class="panel">
-  <button id="btnSolo">Solo</button>
-  <button id="btnBots">Avec Bots</button>
-  <button id="btnRanked">Classé</button>
-</div>
-<div id="chat" class="panel">
-  <div style="font-size:14px">Console:</div>
-  <div id="log" style="height:120px;overflow:auto;font-size:13px;margin-top:6px"></div>
-</div>
-<div id="hudCenter"></div>
+  <div id="loading">Chargement...</div>
+  <div id="hud">HP: <span id="hp">100</span></div>
+  <div id="inv"></div>
+  <canvas id="game"></canvas>
 
-<!-- CDN libs -->
-<script src="https://unpkg.com/three@0.152.2/build/three.min.js"></script>
-<script src="https://unpkg.com/three@0.152.2/examples/js/controls/PointerLockControls.js"></script>
-<script>
-// --- Simple Fortnite-like 3D prototype ---
-// Single-file: three.js scene, simple player, bots, chests, inventory, scoreboard.
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r152/three.min.js"></script>
 
-const GAME = {
-  width: window.innerWidth,
-  height: window.innerHeight,
-  bots: [],
-  items: [],
-  players: [],
-  mode: 'solo',
-  ranked: false
-};
+  <script>
+    // ====== INITIALISATION ======
+    const canvas = document.getElementById("game");
+    const renderer = new THREE.WebGLRenderer({ canvas });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 1000);
+    camera.position.set(0,1.7,5);
 
-// --- Scene setup ---
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(75, GAME.width/GAME.height, 0.1, 1000);
-const renderer = new THREE.WebGLRenderer({antialias:true});
-renderer.setSize(GAME.width, GAME.height);
-document.getElementById('game').appendChild(renderer.domElement);
+    // ====== LUMIERE ======
+    const light = new THREE.DirectionalLight(0xffffff,1);
+    light.position.set(10,10,10);
+    scene.add(light);
 
-// lights
-const hemi = new THREE.HemisphereLight(0xffffff,0x444444,1.1); scene.add(hemi);
-const dir = new THREE.DirectionalLight(0xffffff,0.8); dir.position.set(-1,2,1); scene.add(dir);
+    // ====== SOL ======
+    const geo = new THREE.PlaneGeometry(500,500);
+    const mat = new THREE.MeshStandardMaterial({color:0x228822});
+    const sol = new THREE.Mesh(geo,mat);
+    sol.rotation.x = -Math.PI/2;
+    scene.add(sol);
 
-// ground
-const groundGeo = new THREE.PlaneGeometry(200,200);
-const groundMat = new THREE.MeshStandardMaterial({color:0x2d8f3b});
-const ground = new THREE.Mesh(groundGeo, groundMat); ground.rotation.x = -Math.PI/2; scene.add(ground);
+    // ====== JOUEUR ======
+    let vitesse = 0.1;
+    const keys = {};
+    document.addEventListener("keydown", e => keys[e.key] = true);
+    document.addEventListener("keyup", e => keys[e.key] = false);
 
-ground.receiveShadow = true;
+    // ====== ANIMATION ======
+    function anime(){
+      requestAnimationFrame(anime);
 
-// simple skybox color
-scene.background = new THREE.Color(0x87ceeb);
+      // Mouvement simple
+      if(keys["z"]) camera.position.z -= vitesse;
+      if(keys["s"]) camera.position.z += vitesse;
+      if(keys["q"]) camera.position.x -= vitesse;
+      if(keys["d"]) camera.position.x += vitesse;
 
-// player
-const player = {
-  camera: camera,
-  speed: 6,
-  hp: 100,
-  points: 0,
-  inventory: Array(6).fill(null),
-  weapon: null,
-  pos: new THREE.Vector3(0,1.6,5)
-};
-camera.position.copy(player.pos);
-
-// controls (pointer lock)
-const controls = new THREE.PointerLockControls(camera, renderer.domElement);
-const instructions = document.body;
-instructions.addEventListener('click', ()=>{ controls.lock(); });
-controls.addEventListener('lock', ()=>{ log('Contrôles verrouillés. Déplacez-vous avec ZQSD / WASD. Cliquez pour tirer.');});
-controls.addEventListener('unlock', ()=>{ log('Contrôles déverrouillés.');});
-
-// basic movement
-const keys = {};
-document.addEventListener('keydown', (e)=> keys[e.key.toLowerCase()]=true);
-document.addEventListener('keyup', (e)=> keys[e.key.toLowerCase()]=false);
-
-// mouse click -> shoot
-renderer.domElement.addEventListener('mousedown', (e)=>{ shoot(); });
-
-// ui helpers
-function updateUI(){
-  document.getElementById('hp').innerText = Math.max(0, Math.floor(player.hp));
-  document.getElementById('points').innerText = player.points;
-  document.getElementById('currentWeapon').innerText = player.weapon ? player.weapon.name : 'Aucun';
-  // inventory
-  const inv = document.getElementById('inventory'); inv.innerHTML = '';
-  player.inventory.forEach((it,i)=>{
-    const s = document.createElement('div'); s.className='slot'; s.dataset.index=i;
-    s.innerText = it ? it.name[0] : '';
-    s.title = it ? `${it.name}\n${it.desc}` : 'Vide';
-    s.onclick = ()=>{ if(player.inventory[i]) equipItem(i); };
-    inv.appendChild(s);
-  });
-}
-
-function log(msg){ const d = document.getElementById('log'); const el = document.createElement('div'); el.innerText = `[${new Date().toLocaleTimeString()}] ${msg}`; d.prepend(el); }
-
-// load assets (none external) -> simulate loading
-setTimeout(()=>{ document.getElementById('loading').style.display='none'; log('Assets prêts.'); initGame(); animate(); }, 900);
-
-// --- world entities ---
-function spawnChest(position){
-  const g = new THREE.BoxGeometry(0.8,0.6,0.6);
-  const m = new THREE.MeshStandardMaterial({color:0x8b5a2b});
-  const chest = new THREE.Mesh(g,m); chest.position.copy(position); chest.userData = {type:'chest', opened:false};
-  scene.add(chest); GAME.items.push(chest);
-}
-
-function spawnBot(name, position){
-  const g = new THREE.CapsuleGeometry(0.4, 0.8, 4, 8);
-  const mat = new THREE.MeshStandardMaterial({color:0xff5555});
-  const bot = new THREE.Mesh(g, mat); bot.position.copy(position); bot.userData = {type:'bot', name:name, hp:50, speed:2 + Math.random()*1.2}; scene.add(bot); GAME.bots.push(bot);
-}
-
-// populate world
-for(let i=0;i<8;i++) spawnChest(new THREE.Vector3((Math.random()-0.5)*80,0.3,(Math.random()-0.5)*80));
-for(let i=0;i<5;i++) spawnBot('Bot_'+(i+1), new THREE.Vector3((Math.random()-0.5)*80,1.0,(Math.random()-0.5)*80));
-
-// --- weapons & inventory ---
-const WEAPONS = {
-  pistol: {name:'Pistolet', dmg:10, fireRate:400, ammo:Infinity},
-  rifle: {name:'Fusil', dmg:20, fireRate:220, ammo:60}
-};
-function giveItemToPlayer(item){
-  // try to add to first empty slot
-  const idx = player.inventory.findIndex(x=>x===null);
-  if(idx===-1){ log('Inventaire plein.'); return false; }
-  player.inventory[idx] = item; updateUI(); log(`Vous avez ramassé: ${item.name}`); return true;
-}
-
-function equipItem(index){ const it = player.inventory[index]; if(!it) return; if(it.type==='weapon'){ player.weapon = it; log(`Équipé: ${it.name}`); updateUI(); }}
-
-// simple shooting & hit detection
-let lastShot = 0;
-function shoot(){ if(!player.weapon) { log('Aucune arme équipée'); return; }
-  const now = performance.now(); if(now - lastShot < player.weapon.fireRate) return; lastShot = now;
-  // raycast from camera
-  const ray = new THREE.Raycaster(); ray.setFromCamera(new THREE.Vector2(0,0), camera);
-  const hits = ray.intersectObjects(scene.children, true);
-  if(hits.length>0){
-    const hit = hits[0].object;
-    if(hit.userData.type === 'bot'){ hit.userData.hp -= player.weapon.dmg; log(`Touché ${hit.userData.name} -${player.weapon.dmg} HP`); if(hit.userData.hp<=0){ scene.remove(hit); GAME.bots = GAME.bots.filter(b=>b!==hit); player.points += 50; updateLeaderboard(); }}
-    if(hit.userData.type === 'chest' && !hit.userData.opened){ // open chest
-      hit.userData.opened = true; hit.material.color.setHex(0x3b2f2f);
-      // drop a weapon
-      const drop = {type:'weapon', name: Math.random()<0.5 ? WEAPONS.pistol.name : WEAPONS.rifle.name, desc:'Arme trouvée', dmg: Math.random()<0.5?WEAPONS.pistol.dmg:WEAPONS.rifle.dmg, fireRate: Math.random()<0.5?WEAPONS.pistol.fireRate:WEAPONS.rifle.fireRate, isLegacy:true};
-      giveItemToPlayer(drop);
-      player.points += 10; updateLeaderboard();
+      renderer.render(scene,camera);
     }
-  }
-}
 
-// bots AI: wander and attack if close
-function updateBots(dt){
-  GAME.bots.forEach(bot=>{
-    if(!bot.userData.target || Math.random()<0.01) bot.userData.target = new THREE.Vector3((Math.random()-0.5)*80,1,(Math.random()-0.5)*80);
-    // move toward target
-    const dir = new THREE.Vector3().subVectors(bot.userData.target, bot.position);
-    const d = dir.length(); if(d>0.2){ dir.normalize(); bot.position.addScaledVector(dir, bot.userData.speed*dt); }
-    // if close to player, attack
-    const toPlayer = new THREE.Vector3().subVectors(player.pos, bot.position).length();
-    if(toPlayer < 3){ if(Math.random()<0.01){ player.hp -= 5; log(`${bot.userData.name} vous attaque ! -5 HP`); if(player.hp<=0){ player.hp=0; log('Vous êtes éliminé !'); endRound(); } }}
-  });
-}
-
-// simple leaderboard
-function updateLeaderboard(){
-  const lb = document.getElementById('leaderboard'); lb.innerHTML='';
-  const list = [{name:'Vous',points:player.points}, ...GAME.bots.map((b,i)=>({name:b.userData.name, points: Math.floor(Math.random()*150)}))];
-  list.sort((a,b)=>b.points-a.points);
-  list.forEach(p=>{ const li = document.createElement('li'); li.innerText = `${p.name} — ${p.points}`; lb.appendChild(li); });
-}
-
-// game loop
-let prev = performance.now();
-function animate(){ requestAnimationFrame(animate); const now = performance.now(); const dt = (now - prev)/1000; prev = now;
-  // movement WSAD / ZQSD
-  const forward = (keys['w']||keys['z'])?1:0; const back = keys['s']?1:0; const left = keys['a']||keys['q']?1:0; const right = keys['d']?1:0;
-  const dir = new THREE.Vector3(); if(forward) dir.z -=1; if(back) dir.z +=1; if(left) dir.x -=1; if(right) dir.x +=1; if(dir.length()>0){ dir.normalize(); const speed = player.speed * dt; controls.moveRight(dir.x*speed); controls.moveForward(dir.z*speed); player.pos.copy(camera.position); }
-
-  updateBots(dt);
-  updateUI();
-  updateLeaderboard();
-  renderer.render(scene, camera);
-}
-
-function endRound(){ log('Round terminé — réinitialisation...'); player.hp = 100; player.points = 0; // respawn
-  camera.position.set(0,1.6,5); player.pos.copy(camera.position);
-}
-
-// UI buttons
-document.getElementById('btnBots').onclick = ()=>{ GAME.mode='bots'; log('Mode: Bots activé'); };
-document.getElementById('btnSolo').onclick = ()=>{ GAME.mode='solo'; log('Mode: Solo'); };
-document.getElementById('btnRanked').onclick = ()=>{ GAME.ranked = !GAME.ranked; document.getElementById('btnRanked').innerText = GAME.ranked ? 'Classé ✓' : 'Classé'; log('Mode classé: '+ GAME.ranked); };
-
-// small helper: random pickup spawner over time
-setInterval(()=>{ if(Math.random()<0.6) spawnChest(new THREE.Vector3((Math.random()-0.5)*80,0.3,(Math.random()-0.5)*80)); }, 8000);
-
-// initial weapon
-player.inventory[0] = {type:'weapon', name: WEAPONS.pistol.name, desc:'Un pistolet simple', dmg:WEAPONS.pistol.dmg, fireRate: WEAPONS.pistol.fireRate};
-player.weapon = player.inventory[0]; updateUI(); updateLeaderboard();
-
-// simple multiplayer stub (peer-to-peer would require signaling server — provide placeholder)
-function startMultiplayerStub(){
-  log('Multijoueur: branchement local (stub). Pour vrai multijoueur, ajoutez un serveur de signaling et utilisez WebRTC/Sockets.');
-}
-
-// expose some functions to console for devs
-window.__fort = {scene, player, spawnChest, spawnBot, giveItemToPlayer};
-
-function initGame(){ log('Initialisation du prototype'); updateUI(); updateLeaderboard(); }
-
-// resize
-window.addEventListener('resize', ()=>{ GAME.width=window.innerWidth; GAME.height=window.innerHeight; camera.aspect = GAME.width/GAME.height; camera.updateProjectionMatrix(); renderer.setSize(GAME.width,GAME.height); });
-
-</script>
+    // Retire l'écran de chargement
+    document.getElementById("loading").style.display = "none";
+    anime();
+  </script>
 </body>
 </html>
