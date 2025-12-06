@@ -1,4 +1,17 @@
 // ===== INIT =====
+const canvas = document.getElementById('game');
+const renderer = new THREE.WebGLRenderer({canvas});
+renderer.setSize(window.innerWidth, window.innerHeight);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+camera.position.set(0,1.7,5);
+
+// ===== LIGHT =====
+const light = new THREE.DirectionalLight(0xffffff,1);
+light.position.set(10,10,10);
+scene.add(light);
+
+// ===== PLAYER =====
 const player = { 
     pos: new THREE.Vector3(0,1.7,5), 
     speed:5, 
@@ -13,7 +26,7 @@ document.addEventListener('keyup', e=>keys[e.code]=false);
 
 // ===== CAMERA FPS =====
 let yaw=0, pitch=0;
-document.addEventListener('click',()=>canvas.requestPointerLock());
+canvas.addEventListener('click',()=>canvas.requestPointerLock());
 document.addEventListener('pointerlockchange',()=>{
     if(document.pointerLockElement===canvas) document.addEventListener('mousemove',onMouseMove);
     else document.removeEventListener('mousemove',onMouseMove);
@@ -25,18 +38,7 @@ function onMouseMove(e){
     camera.rotation.set(pitch,yaw,0); 
 }
 
-// ===== HUD =====
-function updateHUD(){ 
-    document.getElementById('hp').innerText=player.hp; 
-    document.getElementById('points').innerText=player.points;
-    for(let i=0;i<6;i++){
-        const slot=document.getElementById('slot'+i);
-        slot.innerText = player.inventory[i] ? player.inventory[i].name : '';
-        slot.style.borderColor = (i===player.selectedSlot)?'yellow':'white';
-    }
-}
-
-// ===== INVENTAIRE =====
+// ===== HUD & INVENTAIRE =====
 const invContainer=document.getElementById('inv');
 for(let i=0;i<6;i++){ 
     const slot=document.createElement('div'); 
@@ -44,43 +46,65 @@ for(let i=0;i<6;i++){
     slot.id='slot'+i; 
     invContainer.appendChild(slot); 
 }
-
-// Changer d’arme avec touches 1-6
 document.addEventListener('keydown', e=>{
     if(e.code.startsWith('Digit')){
         const n = parseInt(e.code.replace('Digit',''))-1;
         if(n>=0 && n<6) player.selectedSlot=n;
     }
 });
+function updateHUD(){
+    document.getElementById('hp').innerText = player.hp;
+    document.getElementById('points').innerText = player.points;
+    const weapon = player.inventory[player.selectedSlot];
+    document.getElementById('ammo').innerText = weapon ? weapon.ammo : 0;
+    for(let i=0;i<6;i++){
+        const slot=document.getElementById('slot'+i);
+        slot.innerText = player.inventory[i] ? player.inventory[i].name : '';
+        slot.classList.toggle('selected', i===player.selectedSlot);
+    }
+}
 
 // ===== ASSETS HD =====
-const loader=new THREE.TextureLoader();
-const assets={
+const manager = new THREE.LoadingManager(() => {
+    document.getElementById('loading').style.display = 'none';
+    animate();
+});
+
+const loader = new THREE.TextureLoader(manager);
+const assets = {
     textures:{
-        ground:loader.load('assets/textures/ground.png'),
-        chest:loader.load('assets/textures/chest.png'),
-        wood:loader.load('assets/textures/wood.png')
+        ground: loader.load('assets/textures/ground.png'),
+        chest: loader.load('assets/textures/chest.png'),
+        wood: loader.load('assets/textures/wood.png')
     },
     sounds:{
-        shoot:new Audio('assets/sounds/shoot.wav'),
-        reload:new Audio('assets/sounds/reload.wav'),
-        chest:new Audio('assets/sounds/chest_open.wav'),
-        build:new Audio('assets/sounds/build.wav')
+        shoot: new Audio('assets/sounds/shoot.wav'),
+        reload: new Audio('assets/sounds/reload.wav'),
+        chest: new Audio('assets/sounds/chest_open.wav'),
+        build: new Audio('assets/sounds/build.wav')
     }
 };
-const gltfLoader=new THREE.GLTFLoader();
+
+const gltfLoader = new THREE.GLTFLoader(manager);
 const models={};
 ['rifle','shotgun','sniper','bot','chest'].forEach(name=>{
     gltfLoader.load(`assets/models/${name}.glb`,gltf=>{ models[name]=gltf.scene; });
 });
 
-// ===== BOTS IA =====
+// ===== SOL =====
+const geo = new THREE.PlaneGeometry(500,500);
+const mat = new THREE.MeshStandardMaterial({map:assets.textures.ground});
+const sol = new THREE.Mesh(geo,mat);
+sol.rotation.x = -Math.PI/2;
+scene.add(sol);
+
+// ===== BOTS =====
 const bots=[];
 function spawnBot(x,z){ 
     const bot=models.bot?models.bot.clone():new THREE.Mesh(new THREE.CapsuleGeometry(0.4,1.4,4,8), new THREE.MeshStandardMaterial({color:0xff0000})); 
     bot.position.set(x,0.9,z); 
     scene.add(bot); 
-    bots.push({mesh:bot,hp:100, cooldown:0}); 
+    bots.push({mesh:bot,hp:100,cooldown:0}); 
 }
 spawnBot(5,5); spawnBot(-5,10);
 
@@ -104,25 +128,25 @@ function randomLoot(){
 spawnChest(3,3); spawnChest(-4,7);
 
 // ===== TIR =====
+let shootCooldown = 0;
 function shoot(){
+    if(shootCooldown>0) return;
     const weapon = player.inventory[player.selectedSlot];
-    if(!weapon) return;
-    if(!weapon.ammo || weapon.ammo<=0) return;
-
+    if(!weapon || weapon.ammo<=0) return;
     weapon.ammo--;
+    shootCooldown=0.3;
     assets.sounds.shoot.cloneNode().play();
 
-    // Raycast simple pour toucher bot
-    const raycaster = new THREE.Raycaster(camera.position, camera.getWorldDirection(new THREE.Vector3()),0,50);
+    const raycaster = new THREE.Raycaster(camera.position,camera.getWorldDirection(new THREE.Vector3()),0,50);
     const intersects = raycaster.intersectObjects(bots.map(b=>b.mesh));
     intersects.forEach(i=>{
         const bot = bots.find(b=>b.mesh===i.object);
         if(bot){ 
-            bot.hp -= 20; 
+            bot.hp-=20; 
             if(bot.hp<=0){ 
                 scene.remove(bot.mesh); 
                 bots.splice(bots.indexOf(bot),1); 
-                player.points +=10;
+                player.points+=10;
                 localStorage.setItem('points',player.points);
             } 
         }
@@ -131,7 +155,7 @@ function shoot(){
 document.addEventListener('mousedown', shoot);
 
 // ===== CONSTRUCTION =====
-const buildSize = 2;
+const buildSize=2;
 document.addEventListener('keydown', e=>{
     let geom, mesh;
     if(e.code==='F1'){ // mur
@@ -157,7 +181,7 @@ document.addEventListener('keydown', e=>{
     assets.sounds.build.cloneNode().play();
 });
 
-// ===== PLAYER UPDATE =====
+// ===== UPDATE PLAYER =====
 function updatePlayer(delta){
     let forward=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));
     let right=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));
@@ -169,34 +193,35 @@ function updatePlayer(delta){
     dir.normalize().multiplyScalar(player.speed*delta);
     camera.position.add(dir);
 
-    // Vérifier collision avec coffres
+    // collision simple sol
+    if(camera.position.y<1.7) camera.position.y=1.7;
+
+    // Interaction coffres
     chests.forEach(c=>{
-        if(camera.position.distanceTo(c.mesh.position)<1.5){
-            if(keys['KeyE']){
+        if(camera.position.distanceTo(c.mesh.position)<1.5 && keys['KeyE']){
+            if(player.inventory.length<6){
                 player.inventory.push(c.loot);
-                assets.sounds.chest.cloneNode().play();
-                scene.remove(c.mesh);
-                chests.splice(chests.indexOf(c),1);
             }
+            assets.sounds.chest.cloneNode().play();
+            scene.remove(c.mesh);
+            chests.splice(chests.indexOf(c),1);
         }
     });
 
-    // Update bots IA
+    // Bots IA
     bots.forEach(bot=>{
         const distance = bot.mesh.position.distanceTo(camera.position);
         if(distance<10){
-            // Poursuite simple
             const dirBot = new THREE.Vector3().subVectors(camera.position,bot.mesh.position).normalize();
             bot.mesh.position.add(dirBot.multiplyScalar(2*delta));
-            // Tir automatique
-            if(bot.cooldown<=0){
-                if(distance<8){
-                    player.hp -= 5;
-                    bot.cooldown = 2; // 2 secondes
-                }
+            if(bot.cooldown<=0 && distance<8){
+                player.hp -= 5;
+                bot.cooldown = 2;
             } else bot.cooldown -= delta;
         }
     });
+
+    if(shootCooldown>0) shootCooldown-=delta;
 }
 
 // ===== ANIMATION =====
@@ -206,9 +231,7 @@ function animate(){
     let now=performance.now();
     let delta=(now-lastTime)/1000;
     lastTime=now;
-
     updatePlayer(delta);
     updateHUD();
     renderer.render(scene,camera);
 }
-animate();
